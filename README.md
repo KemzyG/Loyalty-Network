@@ -1,87 +1,50 @@
 # Loyalty Network
 
-Phase 1 **protocol node** and **HTTP gateway** for recording verifiable fan participation in **football fandom** and **fan communities**.
+## What the project is
 
-MadFan (and other apps) issue signed events; this node validates them, appends them to a local ledger, and exposes per-identity protocol state. The protocol stores **events and counters**, not loyalty points. Apps decide how to reward fans.
+Loyalty Network is a Phase 1 **protocol node** and **HTTP gateway** (TypeScript) that records **verifiable fan participation** for football clubs and fan communities.
+
+Apps such as **MadFan** submit signed events (match attendance, membership, purchases, gated community actions). The node validates them, appends them to a local ledger, and exposes per-identity counters. The protocol stores **events and state**, not loyalty points — the app decides how to reward fans.
 
 | | |
 | --- | --- |
-| **Status** | Prototype / pre-testnet — single-node, local finality |
-| **Distribution** | Private / internal only |
+| **Status** | Local prototype (single node) |
 | **Protocol version** | `0.4` (package `0.4.0`) |
-| **Stack** | TypeScript, Node.js ≥ 20, Ed25519 (`@noble/ed25519`) |
 | **Reference app** | MadFan |
 
-> **Not in scope for Phase 1:** multi-node consensus, P2P, on-chain anchoring, tokens, or production hardening.
+Likes, follows, comments, and shares stay in the app and are rejected on-protocol.
 
 ---
 
-## What this project does
+## Features
 
-1. Registers **identities** (supporters) and **issuers** (club, shop, MadFan) with scoped event permissions.
-2. Accepts **signed protocol events** (match attendance, membership, purchases, gated community actions).
-3. Maintains a deterministic **state root** and per-identity counters.
-4. Persists a JSON **snapshot** so the gateway can restart without losing ledger state.
-5. Exposes an HTTP API for MadFan / curl / local integration spikes.
+- Cryptographic **identities** (supporter) and scoped **issuers** (club, shop, MadFan)
+- Eight gated **core event types** with Ed25519 issuer signatures
+- Deterministic **state root** and per-identity counters
+- **HTTP gateway** for prepare / sign / submit / query
+- JSON **snapshot persistence** across gateway restarts
+- In-process **demos** (all types, or one type at a time)
+- **Conformance**, **error-path**, and **gateway** test suites
 
-**Design rules**
+**On-protocol events:**  
+`ATTENDED_MATCH` · `MEMBERSHIP_STARTED` · `PURCHASE_COMPLETED` · `JOINED_LIVE` · `CREATED_CONTENT` · `JOINED_COMMUNITY` · `ACHIEVEMENT_GRANTED` · `POLL_VOTED`
 
-- Events over points — loyalty UX lives in the app.
-- Farmable social (likes, follows, comments, shares) stays **app-only** and is rejected on-protocol.
-- `POLL_VOTED` uniqueness (one vote per identity per `poll_id`) is enforced by the issuer **before** signing; the protocol only increments `poll_vote_count`.
+**Issuer roles** (`ISSUER_ROLE_TYPES` in `src/types.ts`):
 
----
-
-## Repository layout
-
-```text
-Loyalty Network/
-├── src/
-│   ├── index.ts              # Public exports
-│   ├── types.ts              # Protocol version, event types, issuer roles
-│   ├── errors.ts             # ProtocolError + error codes
-│   ├── canonical.ts          # Canonical JSON for signing / state root
-│   ├── crypto.ts             # Ed25519, SHA-256, IDs, sign/verify
-│   ├── node.ts               # LoyaltyNode — registry, validate, ledger, state
-│   ├── gateway/
-│   │   ├── main.ts           # Process entry: env, load snapshot, listen
-│   │   ├── http.ts           # HTTP routes
-│   │   ├── persist.ts        # Snapshot load / save
-│   │   └── loadEnv.ts        # Local .env loader
-│   └── demo/                 # In-process demos (no HTTP required)
-│       ├── harness.ts        # Shared demo setup
-│       ├── all.ts            # All eight gated types
-│       └── *.ts              # One demo per event type
-├── tests/
-│   ├── conformance.test.ts   # Spec happy-path / determinism
-│   ├── error-paths.test.ts   # Protocol error codes & edges
-│   └── gateway.test.ts       # HTTP + admin + persistence
-├── .env.example
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-├── LICENSE
-└── README.md                 # This file (only markdown tracked in git)
-```
-
-| Module | Responsibility |
+| Role | Events |
 | --- | --- |
-| `LoyaltyNode` (`src/node.ts`) | Identities, issuers, event validation, transitions, snapshot, `state_root` |
-| Crypto (`src/crypto.ts`) | Keypairs, `payload_hash`, `event_id` / `identity_id` / `issuer_id`, signatures |
-| Gateway (`src/gateway/`) | HTTP surface over the node + JSON persistence |
-| Demos (`src/demo/`) | Exercise each event type in-process |
-| Tests (`tests/`) | Conformance, error paths, gateway |
+| Football club | `ATTENDED_MATCH`, `MEMBERSHIP_STARTED`, `JOINED_COMMUNITY`, `ACHIEVEMENT_GRANTED`, `POLL_VOTED` |
+| Club shop | `PURCHASE_COMPLETED` |
+| Fan platform (MadFan) | `JOINED_LIVE`, `CREATED_CONTENT`, `JOINED_COMMUNITY`, `ACHIEVEMENT_GRANTED`, `POLL_VOTED` |
 
-Local-only (gitignored): `docs/`, protocol specs, `GATEWAY.md`, `SECURITY.md`, `data/`, `.env`, `node_modules/`, `dist/`.
+`POLL_VOTED`: enforce one vote per `(identity, poll_id)` in the app **before** the issuer signs.
 
 ---
 
-## Prerequisites
+## Requirements
 
 - **Node.js** ≥ 20
 - **npm** 10+
-
-Verify:
 
 ```bash
 node -v
@@ -90,119 +53,73 @@ npm -v
 
 ---
 
-## Setup
+## Installation
 
 ```bash
-# From the project root
 npm install
 ```
 
-Optional local config:
+Optional local env file:
 
 ```bash
-# Windows (PowerShell)
+# PowerShell
 Copy-Item .env.example .env
 
 # macOS / Linux
 cp .env.example .env
 ```
 
-Edit `.env` if you need a non-default port, admin token, or data path.  
-`npm run gateway` loads `.env` automatically and **does not** override variables already set in the shell.
+---
 
-### Environment variables
+## Configuration
+
+`npm run gateway` loads `.env` automatically if present. Shell environment variables are not overridden.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `LOYALTY_HOST` | `127.0.0.1` | Bind address |
 | `LOYALTY_PORT` | `8787` | HTTP port |
-| `LOYALTY_DATA_PATH` | `./data/node-snapshot.json` | Ledger snapshot file |
-| `LOYALTY_ADMIN_TOKEN` | unset | If set, required as `X-Admin-Token` on admin/dev routes |
+| `LOYALTY_DATA_PATH` | `./data/node-snapshot.json` | Ledger snapshot path |
+| `LOYALTY_ADMIN_TOKEN` | unset | If set, send as `X-Admin-Token` on admin/dev routes |
 | `LOYALTY_DISABLE_DEV` | unset | `1` disables `/dev/*` |
 | `NODE_ENV` | unset | `production` also disables `/dev/*` |
 
+See `.env.example` for a template.
+
 ---
 
-## Verify the install
+## How to
+
+### Run demos (in-process, no server)
 
 ```bash
-npm run typecheck   # TypeScript strict check
-npm test            # 36 tests: conformance + error paths + gateway
-npm run demo        # In-process demo of all gated event types
+npm run demo                    # all eight event types
+npm run demo:attended-match
+npm run demo:membership
+npm run demo:purchase
+npm run demo:joined-community
+npm run demo:achievement
+npm run demo:poll-voted
+npm run demo:joined-live
+npm run demo:created-content
 ```
 
-Expected: typecheck clean, all tests pass, demo prints eight accepts and identity counters (`ledger_height: 8`).
-
----
-
-## Running demos
-
-Demos use an in-memory `LoyaltyNode` (no gateway). Shared setup lives in `src/demo/harness.ts`.
-
-| Command | What it exercises |
-| --- | --- |
-| `npm run demo` / `demo:all` | All eight gated event types |
-| `npm run demo:attended-match` | Club `ATTENDED_MATCH` |
-| `npm run demo:membership` | Club `MEMBERSHIP_STARTED` |
-| `npm run demo:purchase` | Shop `PURCHASE_COMPLETED` |
-| `npm run demo:joined-community` | Club `JOINED_COMMUNITY` |
-| `npm run demo:achievement` | Club `ACHIEVEMENT_GRANTED` |
-| `npm run demo:poll-voted` | Club `POLL_VOTED` |
-| `npm run demo:joined-live` | MadFan `JOINED_LIVE` |
-| `npm run demo:created-content` | MadFan `CREATED_CONTENT` |
-
-Each single-type demo registers only the issuer role it needs and prints the relevant counter.
-
----
-
-## Testing
-
-```bash
-npm test              # One-shot (CI-friendly)
-npm run test:watch    # Vitest watch mode
-npm run typecheck     # tsc --noEmit
-npm run build         # Emit dist/ (JS + .d.ts)
-```
-
-| Suite | File | Covers |
-| --- | --- | --- |
-| Conformance | `tests/conformance.test.ts` | Determinism, duplicates, signatures, sequence, membership transition, counters, farmable reject, revoke, snapshot replay |
-| Error paths | `tests/error-paths.test.ts` | `UNKNOWN_*`, `MALFORMED_EVENT`, `INVALID_*`, `REPLAY_DETECTED`, suspend, rotate, timestamp window |
-| Gateway | `tests/gateway.test.ts` | Health, attendance HTTP slice, admin token, persist/reload, protocol error JSON, pre-event state 404 |
-
----
-
-## Running the gateway
+### Run the gateway
 
 ```bash
 npm run gateway
 ```
 
-| | |
-| --- | --- |
-| Base URL | `http://127.0.0.1:8787` |
-| Health | `GET /health` |
-| Snapshot | `./data/node-snapshot.json` (created on first write; gitignored) |
+- Base URL: `http://127.0.0.1:8787`
+- Health: `GET /health`
 
-### API overview
+### Submit a match-attendance event (local)
 
-| Class | Routes | Auth |
-| --- | --- | --- |
-| Protocol | `POST /events/prepare`, `POST /events`, `GET` identity / issuer / event / state | Issuer Ed25519 signature on submit |
-| Admin | Create/rotate/suspend/revoke identities & issuers, `POST /state/replay-check` | `X-Admin-Token` if `LOYALTY_ADMIN_TOKEN` is set |
-| Dev | `POST /dev/keypair`, `POST /dev/sign-event` | Same admin header when configured; **off** in production / `LOYALTY_DISABLE_DEV=1` |
-
-### Minimal local flow (`ATTENDED_MATCH`)
-
-1. `POST /dev/keypair` twice (supporter + club).
-2. `POST /identities` with the supporter `public_key`.
-3. `POST /issuers` for the club with allowed types including `ATTENDED_MATCH`.
-4. `POST /events/prepare` with `identity_id`, `issuer_id`, `event_type`, `payload`.
-5. Sign the unsigned event (`POST /dev/sign-event` locally, or your KMS in production).
-6. `POST /events` with the signed event → `ACCEPTED`.
-7. `GET /identities/:id/state` → `match_attendance_count`.
-
-**PowerShell example (create identity):**
+1. `POST /dev/keypair` ×2 (supporter + club)
+2. `POST /identities` with supporter `public_key`
+3. `POST /issuers` for the club (include `ATTENDED_MATCH`)
+4. `POST /events/prepare` → sign with `POST /dev/sign-event` → `POST /events`
+5. `GET /identities/:id/state` → `match_attendance_count`
 
 ```powershell
 $keys = Invoke-RestMethod -Method POST -Uri http://127.0.0.1:8787/dev/keypair -ContentType "application/json"
@@ -211,100 +128,76 @@ Invoke-RestMethod -Method POST -Uri http://127.0.0.1:8787/identities `
   -Body (@{ public_key = $keys.public_key } | ConvertTo-Json)
 ```
 
-If `LOYALTY_ADMIN_TOKEN` is set, add header `X-Admin-Token: <token>` on admin and dev calls.
+### Test
 
----
-
-## Domain model (v0.4)
-
-### Who issues what
-
-| Issuer role | Typical events |
-| --- | --- |
-| **Football club** | `ATTENDED_MATCH`, `MEMBERSHIP_STARTED`, `JOINED_COMMUNITY`, `ACHIEVEMENT_GRANTED`, `POLL_VOTED` |
-| **Club shop** | `PURCHASE_COMPLETED` |
-| **Fan platform (MadFan)** | `JOINED_LIVE`, `CREATED_CONTENT`, `JOINED_COMMUNITY`, `ACHIEVEMENT_GRANTED`, `POLL_VOTED` |
-
-Helpers: `ISSUER_ROLE_TYPES` and `DOMAIN_FOCUS` in `src/types.ts`.
-
-### On-protocol event types
-
-`ATTENDED_MATCH` · `MEMBERSHIP_STARTED` · `PURCHASE_COMPLETED` · `JOINED_LIVE` · `CREATED_CONTENT` · `JOINED_COMMUNITY` · `ACHIEVEMENT_GRANTED` · `POLL_VOTED`
-
-### App-only (rejected on wire)
-
-`LIKED` · `FOLLOWED` · `COMMENTED` · `SHARED_CONTENT`
-
-### Reward priority (product guidance)
-
-1. Attendance, membership, purchases  
-2. Community join, achievements, gated polls  
-3. Gated live / moderated content  
-4. Social vanity — app DB only  
-
----
-
-## Architecture
-
-```text
-MadFan / curl / demos
-        │
-        ▼
-   HTTP Gateway  ── persist ──► ./data/node-snapshot.json
-        │
-        ▼
-   LoyaltyNode
-   ├── Identity & issuer registry
-   ├── Event validate (sig, sequence, replay, timestamp, permissions)
-   ├── State transitions (counters)
-   └── Canonical state → state_root (SHA-256)
-        ▲
-        │
- Club / shop / platform issuers (scoped allowed_event_types)
+```bash
+npm test              # full suite
+npm run test:watch    # watch mode
+npm run typecheck     # TypeScript check
+npm run build         # emit dist/
 ```
 
-Phase 1 finality: **single node**. `ACCEPTED` ≡ locally finalized. No BFT yet.
-
-Wire/protocol fields use **snake_case**; TypeScript APIs use **camelCase** where applicable.
-
----
-
-## Security notes (local prototype)
-
-- Bind to `127.0.0.1` by default; do not expose to the public internet.
-- Set `LOYALTY_ADMIN_TOKEN` on any shared host.
-- Disable `/dev/*` outside laptop demos (`LOYALTY_DISABLE_DEV=1` or `NODE_ENV=production`).
-- Never commit `.env`, issuer private keys, or `data/` snapshots with real keys.
-- `/dev/sign-event` accepts a private key in the request body — local tooling only.
-
----
-
-## Scripts reference
-
-| Command | Description |
+| Suite | File |
 | --- | --- |
-| `npm install` | Install dependencies |
-| `npm test` | Run full Vitest suite |
-| `npm run test:watch` | Watch mode |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build` | Compile to `dist/` |
-| `npm run gateway` | Start HTTP gateway |
-| `npm run demo` / `demo:*` | In-process event demos |
+| Conformance | `tests/conformance.test.ts` |
+| Error paths | `tests/error-paths.test.ts` |
+| Gateway | `tests/gateway.test.ts` |
+
+### API reference
+
+| Class | Routes |
+| --- | --- |
+| Protocol | `POST /events/prepare`, `POST /events`, `GET` identity / issuer / event / state |
+| Admin | Identities & issuers registry, `POST /state/replay-check` |
+| Dev | `POST /dev/keypair`, `POST /dev/sign-event` |
+
+| | |
+| --- | --- |
+| Library entry | `src/index.ts` (`LoyaltyNode`, crypto, types) |
+| Gateway entry | `src/gateway/main.ts` |
+| Wire fields | `snake_case` |
+| Crypto | Ed25519 (`@noble/ed25519`) |
 
 ---
 
-## Git / docs policy
+## Project architecture
 
-| Tracked | Local only (gitignored) |
+```text
+You / MadFan / demos
+        │
+        ▼
+   HTTP Gateway          src/gateway/
+   (routes, env, persist)
+        │
+        ▼
+   LoyaltyNode           src/node.ts
+   ├── Identity & issuer registry
+   ├── Event validation (sig, sequence, replay, permissions)
+   ├── State transitions (counters)
+   └── Canonical state → state_root
+        │
+        ▼
+   JSON snapshot         ./data/node-snapshot.json
+```
+
+| Path | Responsibility |
 | --- | --- |
-| `src/`, `tests/`, `package.json`, lockfile, configs, `LICENSE`, `.env.example`, **this README** | Other `*.md`, `docs/`, `data/`, `node_modules/`, `dist/`, `.env` |
+| `src/node.ts` | Core ledger, registry, validation, state |
+| `src/crypto.ts` | Keypairs, hashes, IDs, sign / verify |
+| `src/canonical.ts` | Canonical JSON for signing and state root |
+| `src/types.ts` | Protocol version, event types, issuer roles |
+| `src/errors.ts` | `ProtocolError` codes |
+| `src/gateway/http.ts` | HTTP routes |
+| `src/gateway/main.ts` | Process entry |
+| `src/gateway/persist.ts` | Snapshot load / save |
+| `src/gateway/loadEnv.ts` | `.env` loader |
+| `src/demo/` | In-process demos (`harness.ts` + per-event scripts) |
+| `tests/` | Conformance, error paths, gateway |
 
-Normative protocol specs and extended gateway notes may exist locally; clones rely on this README unless those files are shared separately.
+Phase 1 finality is **single-node**: `ACCEPTED` means accepted on this local node.
 
 ---
 
 ## License
 
 MIT — see `LICENSE`.
-
-Internal distribution preference does not change the license text in this repository; align LICENSE with legal intent before any wider release.
