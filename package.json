@@ -1,0 +1,54 @@
+{
+  "name": "@loyalty-network/protocol-node",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Loyalty Network Phase 1 — football fandom & fan community protocol node + gateway (v0.4)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "tsx src/demo/all.ts",
+    "demo:attended-match": "tsx src/demo/attended-match.ts",
+    "demo:membership": "tsx src/demo/membership.ts",
+    "demo:purchase": "tsx src/demo/purchase.ts",
+    "demo:joined-live": "tsx src/demo/joined-live.ts",
+    "demo:created-content": "tsx src/demo/created-content.ts",
+    "demo:joined-community": "tsx src/demo/joined-community.ts",
+    "demo:achievement": "tsx src/demo/achievement.ts",
+    "demo:poll-voted": "tsx src/demo/poll-voted.ts",
+    "demo:all": "tsx src/demo/all.ts",
+    "gateway": "tsx src/gateway/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "loyalty",
+    "football",
+    "fandom",
+    "community",
+    "protocol",
+    "ed25519",
+    "madfan",
+    "verifiable-events"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@noble/ed25519": "^2.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}
